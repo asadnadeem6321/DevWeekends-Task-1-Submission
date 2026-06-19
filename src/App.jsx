@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
+import TodoForm from './components/TodoForm'
+import TodoList from './components/TodoList'
 import './App.css'
 
 const STORAGE_KEY = 'react-todo-practice-v1'
@@ -81,6 +83,24 @@ function formatDate(dateValue) {
   }).format(new Date(`${dateValue}T00:00:00`))
 }
 
+function filterTasks(tasks, filter, search) {
+  const searchValue = search.trim().toLowerCase()
+
+  return tasks.filter((task) => {
+    const matchesFilter =
+      filter === 'all' ||
+      (filter === 'active' && !task.completed) ||
+      (filter === 'completed' && task.completed)
+    const matchesSearch =
+      searchValue.length === 0 ||
+      [task.title, task.notes, task.priority]
+        .filter(Boolean)
+        .some((field) => field.toLowerCase().includes(searchValue))
+
+    return matchesFilter && matchesSearch
+  })
+}
+
 function App() {
   const [tasks, setTasks] = useState(getStoredTasks)
   const [formValues, setFormValues] = useState(blankForm)
@@ -92,23 +112,7 @@ function App() {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks))
   }, [tasks])
 
-  const visibleTasks = useMemo(() => {
-    const searchValue = search.trim().toLowerCase()
-
-    return tasks.filter((task) => {
-      const matchesFilter =
-        filter === 'all' ||
-        (filter === 'active' && !task.completed) ||
-        (filter === 'completed' && task.completed)
-      const matchesSearch =
-        searchValue.length === 0 ||
-        [task.title, task.notes, task.priority]
-          .filter(Boolean)
-          .some((field) => field.toLowerCase().includes(searchValue))
-
-      return matchesFilter && matchesSearch
-    })
-  }, [filter, search, tasks])
+  const visibleTasks = filterTasks(tasks, filter, search)
 
   const completedCount = tasks.filter((task) => task.completed).length
   const activeCount = tasks.length - completedCount
@@ -235,154 +239,32 @@ function App() {
       </section>
 
       <section className="workspace-grid">
-        <form className="composer card" onSubmit={handleSubmit}>
-          <div className="card-heading">
-            <div>
-              <p className="section-label">Task editor</p>
-              <h2>{editingId ? 'Update task' : 'Create a task'}</h2>
-            </div>
-            <button type="button" className="ghost-button" onClick={cancelEditing}>
-              Reset
-            </button>
-          </div>
+        <TodoForm
+          title={editingId ? 'Update task' : 'Create a task'}
+          values={formValues}
+          onChange={setFormValues}
+          onSubmit={handleSubmit}
+          onReset={cancelEditing}
+          onClearCompleted={clearCompleted}
+          isEditing={editingId !== null}
+        />
 
-          <label>
-            Title
-            <input
-              value={formValues.title}
-              onChange={(event) => setFormValues({ ...formValues, title: event.target.value })}
-              placeholder="Example: Finalize the React project"
-              maxLength={80}
-              required
-            />
-          </label>
-
-          <label>
-            Notes
-            <textarea
-              value={formValues.notes}
-              onChange={(event) => setFormValues({ ...formValues, notes: event.target.value })}
-              placeholder="Add a short note about the task or submission detail."
-              rows={4}
-            />
-          </label>
-
-          <div className="field-row">
-            <label>
-              Priority
-              <select
-                value={formValues.priority}
-                onChange={(event) =>
-                  setFormValues({ ...formValues, priority: event.target.value })
-                }
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
-            </label>
-
-            <label>
-              Due date
-              <input
-                type="date"
-                value={formValues.dueDate}
-                onChange={(event) => setFormValues({ ...formValues, dueDate: event.target.value })}
-              />
-            </label>
-          </div>
-
-          <div className="form-actions">
-            <button type="submit" className="primary-button">
-              {editingId ? 'Save changes' : 'Add task'}
-            </button>
-            <button type="button" className="secondary-button" onClick={clearCompleted}>
-              Clear completed
-            </button>
-          </div>
-        </form>
-
-        <section className="board card">
-          <div className="card-heading board-heading">
-            <div>
-              <p className="section-label">Task board</p>
-              <h2>{visibleTasks.length ? 'Current work' : 'No matching tasks'}</h2>
-            </div>
-
-            <div className="toolbar">
-              {filterOptions.map((option) => (
-                <button
-                  key={option.key}
-                  type="button"
-                  className={filter === option.key ? 'filter-button active' : 'filter-button'}
-                  onClick={() => setFilter(option.key)}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <label className="search-field">
-            Search
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by title, note, or priority"
-            />
-          </label>
-
-          <div className="board-meta">
-            <span>{activeCount} active</span>
-            <span>{completedCount} done</span>
-            <span>{tasks.length ? `${completionRate}% complete` : 'No tasks yet'}</span>
-          </div>
-
-          <div className="task-list">
-            {visibleTasks.length ? (
-              visibleTasks.map((task) => (
-                <article key={task.id} className={task.completed ? 'task-item done' : 'task-item'}>
-                  <label className="task-main">
-                    <input
-                      type="checkbox"
-                      checked={task.completed}
-                      onChange={() => toggleTask(task.id)}
-                    />
-                    <div>
-                      <div className="task-title-row">
-                        <h3>{task.title}</h3>
-                        <span className={`priority priority-${task.priority}`}>{task.priority}</span>
-                      </div>
-                      {task.notes ? <p>{task.notes}</p> : <p className="muted">No notes added.</p>}
-                      <div className="task-meta">
-                        <span>Due {formatDate(task.dueDate)}</span>
-                        <span>
-                          Added {new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(
-                            new Date(task.createdAt),
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                  </label>
-
-                  <div className="task-actions">
-                    <button type="button" className="ghost-button" onClick={() => startEditing(task)}>
-                      Edit
-                    </button>
-                    <button type="button" className="ghost-button danger" onClick={() => removeTask(task.id)}>
-                      Delete
-                    </button>
-                  </div>
-                </article>
-              ))
-            ) : (
-              <div className="empty-state">
-                <h3>No tasks match the current view.</h3>
-                <p>Try another filter or create a new task from the editor on the left.</p>
-              </div>
-            )}
-          </div>
-        </section>
+        <TodoList
+          tasks={visibleTasks}
+          allTasks={tasks}
+          activeCount={activeCount}
+          completedCount={completedCount}
+          completionRate={completionRate}
+          filter={filter}
+          filterOptions={filterOptions}
+          search={search}
+          onFilterChange={setFilter}
+          onSearchChange={setSearch}
+          onToggleTask={toggleTask}
+          onEditTask={startEditing}
+          onDeleteTask={removeTask}
+          formatDate={formatDate}
+        />
       </section>
     </main>
   )
